@@ -2,11 +2,17 @@
 //
 
 #include "stdafx.h"
+#include "MySocket.h"
 #include "MyThreadPool.h"
 #include "IMyCommand.h"
 
 int _tmain(int argc, _TCHAR* argv[])
 {
+  if(!MyWSAStartup())
+  {
+    return -1;
+  }
+
   //创建线程池
   CThreadPool pool;
   BOOL bRet = pool.Create(5);

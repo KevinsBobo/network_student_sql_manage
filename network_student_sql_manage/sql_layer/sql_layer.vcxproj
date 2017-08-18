@@ -42,7 +42,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>../thread_pool;$(IncludePath)</IncludePath>
+    <IncludePath>../common;../thread_pool;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
@@ -81,6 +81,7 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\common\MySocket.h" />
     <ClInclude Include="..\thread_pool\IMyCommand.h" />
     <ClInclude Include="..\thread_pool\MyCommandManager.h" />
     <ClInclude Include="..\thread_pool\MyThreadPool.h" />
