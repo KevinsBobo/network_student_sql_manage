@@ -7,6 +7,7 @@
 #include "client_layerDlg.h"
 #include "afxdialogex.h"
 #include "enum.h"
+#include "MySocket.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -49,12 +50,13 @@ END_MESSAGE_MAP()
 
 
 CClientLayerDlg::CClientLayerDlg(CWnd* pParent /*=NULL*/)
-	: CDialogEx(CClientLayerDlg::IDD, pParent)
+  : CDialogEx(CClientLayerDlg::IDD , pParent)
   , m_nId(0)
   , m_strName(_T(""))
   , m_nSex(0)
   , m_strPhone(_T(""))
   , m_strHobby(_T(""))
+  , m_sServer(INVALID_SOCKET)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -92,6 +94,8 @@ BEGIN_MESSAGE_MAP(CClientLayerDlg, CDialogEx)
 	ON_WM_QUERYDRAGICON()
   ON_BN_CLICKED(IDOK , &CClientLayerDlg::OnBnClickedOk)
   ON_BN_CLICKED(IDCANCEL , &CClientLayerDlg::OnBnClickedCancel)
+  ON_WM_TIMER()
+  ON_MESSAGE(WM_MYMESSAGE, &CClientLayerDlg::OnMyMessage)
 END_MESSAGE_MAP()
 
 
@@ -127,7 +131,10 @@ BOOL CClientLayerDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 设置小图标
 
 	// TODO:  在此添加额外的初始化代码
+  // 初始化界面
   InitInterface();
+  // 连接中间层
+  ConnectControl();
 
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
@@ -172,6 +179,7 @@ void CClientLayerDlg::OnPaint()
 	{
 		CDialogEx::OnPaint();
 	}
+
 }
 
 //当用户拖动最小化窗口时系统调用此函数取得光标
@@ -194,6 +202,9 @@ void CClientLayerDlg::InitInterface()
   m_ComboSex.InsertString(emComboSex::man, TEXT("男"));
   m_ComboSex.InsertString(emComboSex::woman, TEXT("女"));
   m_ComboSex.SetCurSel(emComboSex::unkonw);
+
+  // 设置进度条定时器
+  StartProgress();
   
 }
 
@@ -261,6 +272,11 @@ void CClientLayerDlg::ManageInputInfo(InputInfo& input , bool isInput)
   if(isInput)
   {
     UpdateData(TRUE);
+    input.nId = 0;
+    input.nSex = 0;
+    input.strName.Empty();
+    input.strPhone.Empty();
+    input.strHobby.Empty();
     input.nId = m_nId;
     input.nSex = m_nSex;
     input.strName = m_strName;
@@ -276,4 +292,107 @@ void CClientLayerDlg::ManageInputInfo(InputInfo& input , bool isInput)
     m_strHobby = input.strHobby;
     UpdateData(FALSE);
   }
+}
+
+
+void CClientLayerDlg::OnTimer(UINT_PTR nIDEvent)
+{
+  // TODO:  在此添加消息处理程序代码和/或调用默认值
+  switch(nIDEvent)
+  {
+    case emTimer::progress:
+    {
+      int nNum = m_Progress.GetPos();
+      m_Progress.SetPos((++nNum) % 101);
+    }
+      break;
+    default:
+      break;
+  }
+
+  CDialogEx::OnTimer(nIDEvent);
+}
+
+
+afx_msg LRESULT CClientLayerDlg::OnMyMessage(WPARAM wParam , LPARAM lParam)
+{
+  switch(wParam)
+  {
+    case emMessage::connected:
+      StopProgress();
+      m_StaticTextInfo.SetWindowTextW(L"连接成功！");
+      m_EditID.Clear();
+      m_sServer = lParam;
+      DisabledAllBtn(FALSE);
+      break;
+    case emMessage::connect_fail:
+      StopProgress();
+      m_StaticTextInfo.SetWindowTextW(L"连接失败，初始化网络错误！");
+      m_EditID.Clear();
+
+    default:
+      break;
+  }
+
+  return S_OK;
+}
+
+
+UINT AFX_CDECL CClientLayerDlg::ConnectThreadProc(LPVOID lpParameter)
+{
+  CClientLayerDlg* obj = (CClientLayerDlg*)lpParameter;
+  SOCKET s = INVALID_SOCKET;
+
+  // 1. 创建一个套接字 socket
+  s = socket(AF_INET , // 网络协议簇
+             SOCK_STREAM , // "流式" -- TCP, SOCK_DGRAM "数据报" -- UDP
+             IPPROTO_TCP);
+  if(s == INVALID_SOCKET)
+  {
+    obj->SendMessage(WM_MYMESSAGE , emMessage::connect_fail);
+    return S_FALSE;
+  }
+
+  // 2. 设置服务端 IP 和 端口 // 客户端不需要绑定
+  sockaddr_in addr; // 一个14字节大的结构体
+  addr.sin_family = AF_INET;
+  addr.sin_addr.S_un.S_addr = inet_addr(CONTROL_IP); // IP地址
+  addr.sin_port = htons(CONTROL_PORT); // htons() 将主机字节序转为网络序，s代表sort
+
+  // 3. 连接服务端 connect
+  while(1)
+  {
+    int nRet = connect(s , (sockaddr*)&addr , sizeof(sockaddr));
+    if(nRet == SOCKET_ERROR)
+    {
+      continue;
+    }
+
+    obj->SendMessage(WM_MYMESSAGE , emMessage::connected, s);
+    break;
+  }
+
+  return S_OK;
+}
+
+void CClientLayerDlg::ConnectControl()
+{
+  AfxBeginThread(ConnectThreadProc ,
+                 (LPVOID)this);
+}
+
+
+void CClientLayerDlg::StartProgress()
+{
+  m_Progress.ShowWindow(SW_SHOW);
+  m_Progress.SetPos(0);
+  SetTimer(emTimer::progress , 10, NULL);
+}
+
+
+void CClientLayerDlg::StopProgress()
+{
+  m_Progress.ShowWindow(SW_HIDE);
+  m_Progress.SetPos(0);
+  KillTimer(emTimer::progress);
 }

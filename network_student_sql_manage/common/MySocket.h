@@ -4,6 +4,23 @@
 // win 初始化环境
 #pragma comment(lib, "ws2_32.lib")
 
+#define CONTROL_IP "127.0.0.1"
+#define CONTROL_PORT 12306
+#define SQLSERVER_IP "127.0.0.1"
+#define SQLSERVER_PORT 12307
+
+enum emSocketMsg
+{
+  // 客户端
+  iam_clent = 0,
+
+  // 中间层
+  iam_control = 100,
+
+  // 服务器
+  iam_sqlserver = 200,
+};
+
 inline BOOL MyWSAStartup()
 {
   WORD wVersionRequested;
@@ -34,4 +51,110 @@ inline BOOL MyWSAStartup()
   }
 
   return TRUE;
+}
+
+
+inline char* RecivPacket(SOCKET sSocket)
+{
+    DWORD dwPacketSize = 0;
+    BYTE eDataType;
+
+    //接收DWORD的长度
+    int nTotalRecivByte = 0;
+    int nRealRecivByte = 0;
+    int nShouldReciveByte = sizeof(DWORD);
+    while (nTotalRecivByte < nShouldReciveByte)
+    {
+        nTotalRecivByte =
+            recv(sSocket, (char*)&dwPacketSize + nRealRecivByte, sizeof(DWORD)-nTotalRecivByte, 0);
+        if (nRealRecivByte == SOCKET_ERROR)
+        {
+            return NULL;
+        }
+        nTotalRecivByte += nRealRecivByte;
+    }
+
+    //创建数据包
+    char* packet = new char[dwPacketSize + sizeof(DWORD)];
+    *(DWORD*)packet = dwPacketSize;
+
+    //接收eunm数据类型长度
+    nTotalRecivByte = 0;
+    nRealRecivByte = 0;
+    nShouldReciveByte = sizeof(BYTE);
+    while (nTotalRecivByte < nShouldReciveByte)
+    {
+        nRealRecivByte =
+            recv(sSocket, (char*)&eDataType + nRealRecivByte, sizeof(BYTE)-nTotalRecivByte, 0);
+        if (nRealRecivByte == SOCKET_ERROR)
+        {
+            return NULL;
+        }
+        nTotalRecivByte += nRealRecivByte;
+    }
+    *(BYTE*)(packet + sizeof(DWORD)) = eDataType;
+
+    //接收数据长度
+    if(dwPacketSize > sizeof(BYTE))
+    {
+      nTotalRecivByte = 0;
+      nRealRecivByte = 0;
+      nShouldReciveByte = dwPacketSize - sizeof(BYTE);
+      while (nTotalRecivByte < nShouldReciveByte)
+      {
+          nRealRecivByte =
+              recv(sSocket, packet + sizeof(DWORD) + sizeof(BYTE) + nRealRecivByte, nShouldReciveByte - nTotalRecivByte, 0);
+          if (nRealRecivByte == SOCKET_ERROR)
+          {               
+              return NULL;
+          }
+          nTotalRecivByte += nRealRecivByte;
+      }
+
+    }
+    //接收完毕
+    return packet;
+}
+
+inline int SendPacket(SOCKET sSocket, BYTE emType, char* szSendData, int nSendDataBytes)
+{
+    //根据数据构造柔性数组
+    int nTotaBytes = sizeof(DWORD)+sizeof(BYTE)+nSendDataBytes;
+    char* packet =
+        new char[nTotaBytes];
+    if (packet == NULL)
+    {
+        return SOCKET_ERROR;
+    }
+
+    *(DWORD*)packet = nSendDataBytes + sizeof(BYTE);
+    *(BYTE*)(packet + sizeof(DWORD)) = emType;
+    if(szSendData != NULL)
+    {
+      memcpy(packet + sizeof(DWORD) + sizeof(BYTE), szSendData, nSendDataBytes);
+    }
+
+    //发送数据包
+    int nTotoSentBytes = 0;
+    int nSentBytes = 0;
+    while (nTotoSentBytes < nTotaBytes)
+    {
+        nSentBytes = send(sSocket, (char*)packet + nSentBytes, nTotaBytes - nSentBytes, 0);
+        if (nSentBytes == SOCKET_ERROR)
+        {
+            if (packet != NULL)
+            {
+                delete packet;
+            }
+            return SOCKET_ERROR;
+        }
+        nTotoSentBytes += nSentBytes;
+    }
+
+    if (packet != NULL)
+    {
+        delete packet;
+    }
+    
+    return 0;
 }

@@ -6,12 +6,24 @@ enum emListMain
   name,
   sex,
   phone,
-  hobby
+  hobby,
 };
 
 enum emComboSex
 {
   unkonw = 0,
   man,
-  woman
+  woman,
+};
+
+enum emTimer
+{
+  progress = 0,
+};
+
+enum emMessage
+{
+  connected = 0,
+  connect_fail,
+
 };

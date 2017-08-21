@@ -7,6 +7,7 @@
 #include "afxwin.h"
 #include "info.h"
 
+#define WM_MYMESSAGE (WM_USER + 100)
 
 // CClientLayerDlg ¶Ô»°¿ò
 class CClientLayerDlg : public CDialogEx
@@ -32,6 +33,7 @@ protected:
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
 	DECLARE_MESSAGE_MAP()
+  afx_msg LRESULT OnMyMessage(WPARAM wParam , LPARAM lParam);
 public:
   afx_msg void OnBnClickedOk();
   afx_msg void OnBnClickedCancel();
@@ -62,4 +64,10 @@ public:
   int m_nSex;
   CString m_strPhone;
   CString m_strHobby;
+  afx_msg void OnTimer(UINT_PTR nIDEvent);
+  static UINT AFX_CDECL ConnectThreadProc(LPVOID lpParameter);
+  SOCKET m_sServer;
+  void ConnectControl();
+  void StartProgress();
+  void StopProgress();
 };
