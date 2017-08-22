@@ -25,5 +25,16 @@ enum emMessage
 {
   connected = 0,
   connect_fail,
+  optdone,
+  recvinfo,
+};
 
+enum emOpt
+{
+  insert = 0,
+  del,
+  update,
+  find,
+  findall,
+  refresh
 };

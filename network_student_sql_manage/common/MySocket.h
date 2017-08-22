@@ -1,6 +1,6 @@
 #pragma once
 
-#include <winsock.h>
+#include <winsock2.h>
 // win 初始化环境
 #pragma comment(lib, "ws2_32.lib")
 
@@ -13,12 +13,29 @@ enum emSocketMsg
 {
   // 客户端
   iam_clent = 0,
+  sql_insert,
+  sql_del,
+  sql_find,
+  sql_findall,
+  sql_update,
+  sql_getver,
 
   // 中间层
-  iam_control = 100,
+  iam_control = 50,
 
   // 服务器
-  iam_sqlserver = 200,
+  iam_sqlserver = 100,
+  sql_insert_succ,
+  sql_insert_fail,
+  sql_del_succ,
+  sql_del_fail,
+  sql_find_succ,
+  sql_find_fail,
+  sql_findall_succ,
+  sql_findall_fail,
+  sql_update_succ,
+  sql_update_fail,
+  sql_retver,
 };
 
 inline BOOL MyWSAStartup()
@@ -65,9 +82,9 @@ inline char* RecivPacket(SOCKET sSocket)
     int nShouldReciveByte = sizeof(DWORD);
     while (nTotalRecivByte < nShouldReciveByte)
     {
-        nTotalRecivByte =
+        nRealRecivByte =
             recv(sSocket, (char*)&dwPacketSize + nRealRecivByte, sizeof(DWORD)-nTotalRecivByte, 0);
-        if (nRealRecivByte == SOCKET_ERROR)
+        if (nRealRecivByte == 0 || nRealRecivByte == SOCKET_ERROR)
         {
             return NULL;
         }
@@ -86,7 +103,7 @@ inline char* RecivPacket(SOCKET sSocket)
     {
         nRealRecivByte =
             recv(sSocket, (char*)&eDataType + nRealRecivByte, sizeof(BYTE)-nTotalRecivByte, 0);
-        if (nRealRecivByte == SOCKET_ERROR)
+        if (nRealRecivByte == 0 || nRealRecivByte == SOCKET_ERROR)
         {
             return NULL;
         }
@@ -104,7 +121,7 @@ inline char* RecivPacket(SOCKET sSocket)
       {
           nRealRecivByte =
               recv(sSocket, packet + sizeof(DWORD) + sizeof(BYTE) + nRealRecivByte, nShouldReciveByte - nTotalRecivByte, 0);
-          if (nRealRecivByte == SOCKET_ERROR)
+          if (nRealRecivByte == 0 || nRealRecivByte == SOCKET_ERROR)
           {               
               return NULL;
           }

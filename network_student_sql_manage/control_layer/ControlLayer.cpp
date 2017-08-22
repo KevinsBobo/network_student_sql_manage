@@ -5,12 +5,122 @@
 #include "MySocket.h"
 #include "MyThreadPool.h"
 #include "IMyCommand.h"
+#include "afxwin.h"
+#include "MyCommand.h"
 
 
 SOCKET g_Sck = INVALID_SOCKET;
-SOCKET g_sClient = INVALID_SOCKET; 
+// SOCKET g_sClient = INVALID_SOCKET; 
 SOCKET g_sSqlServer = INVALID_SOCKET;
 sockaddr_in g_addr = { 0 };
+CList<SOCKET> g_ListSck;
+CThreadPool pool;
+
+
+void DisPose(SOCKET sClient, char* pMess)
+{
+  CMyCommand* cmd = new CMyCommand;
+  cmd->m_sClient = sClient;
+  cmd->m_pMess = pMess;
+  cmd->m_sServer = g_sSqlServer;
+  pool.Handle(cmd);
+}
+
+UINT AFX_CDECL DisSqlPoseThreadProc(LPVOID lpParameter)
+{
+  while(1)
+  {
+    char* pSqlMess = RecivPacket(g_sSqlServer);
+    
+    if(pSqlMess == NULL)
+    {
+      return 0;
+    }
+
+    DWORD nLen = *(DWORD*)pSqlMess;
+    BYTE nType = *(BYTE*)(pSqlMess + sizeof(DWORD));
+
+    printf("收到服务端长度为 %3u 的 %3d 消息\n", nLen , (int)nType);
+
+    SOCKET s = *(SOCKET*)(pSqlMess + sizeof(DWORD) + sizeof(BYTE));
+
+    SendPacket(s , nType ,
+               pSqlMess + sizeof(DWORD) + sizeof(BYTE) + sizeof(SOCKET) ,
+               nLen - sizeof(BYTE) - sizeof(SOCKET));
+
+    delete pSqlMess;
+  }
+
+  return 0;
+}
+
+
+UINT AFX_CDECL RecvThreadProc(LPVOID lpParameter)
+{
+  SOCKET sClient = INVALID_SOCKET;
+  int nLength = sizeof(sockaddr);
+  char szBuff[ MAXBYTE ] = { 0 };
+  int nRecv = 0;
+  char* pMess = NULL;
+  u_long UnBlockMode = 1;
+  u_long BlockMode = 0;
+
+  while(1)
+  {
+    POSITION pos = g_ListSck.GetHeadPosition();
+
+    SOCKET sClient = INVALID_SOCKET;
+    while(pos != NULL)
+    {
+      sClient = g_ListSck.GetNext(pos);
+      ioctlsocket(sClient ,FIONBIO,&UnBlockMode);
+
+      nRecv = recv(sClient , szBuff , 1 , MSG_PEEK);
+
+      if(nRecv > 0)
+      {
+        ioctlsocket(sClient,FIONBIO,&BlockMode);
+        pMess = RecivPacket(sClient);
+        if(pMess == NULL)
+        {
+          POSITION pos = g_ListSck.Find(sClient , g_ListSck.GetHeadPosition());
+          if(pos != NULL)
+          {
+            g_ListSck.RemoveAt(pos);
+            printf("%u 连接断开\n", sClient);
+          }
+          continue;
+        }
+
+        // 处理消息
+        DisPose(sClient, pMess);
+      }
+
+      nRecv = 0;
+      pMess = NULL;
+      sClient = INVALID_SOCKET;
+    }
+  }
+}
+
+
+UINT AFX_CDECL ConnectThreadProc(LPVOID lpParameter)
+{
+  SOCKET sClient = INVALID_SOCKET;
+  int nLength = sizeof(sockaddr);
+  while(1)
+  {
+    sClient = accept(g_Sck , (sockaddr*)&g_addr , &nLength);
+    if(sClient == INVALID_SOCKET || sClient == NULL)
+    {
+      printf("连接错误\n");
+      return S_FALSE;
+    }
+    g_ListSck.AddTail(sClient);
+
+    printf("%u 连接成功\n", sClient);
+  }
+}
 
 
 long StartServer()
@@ -49,17 +159,14 @@ long StartServer()
   }
 
   printf("监听成功，等待连接\n");
+  printf("输入'D'退出中间层\n");
 
   // 4. 等待连接
-  int nLength = sizeof(sockaddr);
-  g_sClient = accept(g_Sck , (sockaddr*)&g_addr , &nLength);
-  if(g_sClient == INVALID_SOCKET)
-  {
-    printf("连接错误\n");
-    return S_FALSE;
-  }
+  AfxBeginThread(ConnectThreadProc , NULL);
 
-  printf("连接成功\n");
+  // 5. 检查消息
+  AfxBeginThread(RecvThreadProc , NULL);
+
   return S_OK;
 }
 
@@ -93,6 +200,9 @@ long ConnSQLServer()
     }
 
     printf("连接成功\n");
+    
+    AfxBeginThread(DisSqlPoseThreadProc , NULL);
+
     break;
   }
 
@@ -126,8 +236,7 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
   //创建线程池
-  CThreadPool pool;
-  BOOL bRet = pool.Create(5);
+  BOOL bRet = pool.Create(4);
 
   if (!bRet)
   {
@@ -137,12 +246,28 @@ int _tmain(int argc, _TCHAR* argv[])
 
   // pool.Handle(xxx);
 
-  Sleep(100);
+
+  while(char c = getchar())
+  {
+    if(c == 'D')
+    {
+      break;
+    }
+  }
 
   pool.Destroy();
 
+  POSITION pos = g_ListSck.GetHeadPosition();
+  SOCKET sClient = INVALID_SOCKET;
+  while(pos != NULL)
+  {
+    sClient = g_ListSck.GetNext(pos);
+    closesocket(sClient);
+    sClient = INVALID_SOCKET;
+  }
+  g_ListSck.RemoveAll();
 
-  getchar();
-
+  closesocket(g_sSqlServer);
+  closesocket(g_Sck);
 	return 0;
 }
