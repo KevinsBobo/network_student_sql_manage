@@ -806,8 +806,19 @@ BOOL CClientLayerDlg::OptFindall(CClientLayerDlg* obj)
 
   if(obj->m_nPreOpt == obj->m_nCurOpt)
   {
+    SendPacket(obj->m_sServer , emSocketMsg::sql_getver , NULL , 0);
+    char* pSqlMess = RecivPacket(obj->m_sServer);
+  
+    if(pSqlMess == NULL)
+    {
+      return FALSE;
+    }
 
-    // return 2;
+    DWORD nLen = *(DWORD*)pSqlMess;
+    if(obj->m_nSqlVer == *(UINT*)(pSqlMess + sizeof(DWORD) + sizeof(BYTE)))
+    {
+      return 2;
+    }
   }
 
   InputInfo* pInfo = obj->m_pInfo;
@@ -901,9 +912,10 @@ void CClientLayerDlg::DisposeRecv(char* pMess)
   m_ListMain.DeleteAllItems();
 
   DWORD nLen = *(DWORD*)pMess;
-  UINT nItem = *(UINT*)(pMess + sizeof(DWORD) + sizeof(BYTE));
+  m_nSqlVer = *(UINT*)(pMess + sizeof(DWORD) + sizeof(BYTE));
+  UINT nItem = *(UINT*)(pMess + sizeof(DWORD) + sizeof(BYTE) + sizeof(int));
 
-  char* pwMess = (pMess + sizeof(DWORD) + sizeof(BYTE) + sizeof(UINT));
+  char* pwMess = (pMess + sizeof(DWORD) + sizeof(BYTE) + sizeof(UINT) + sizeof(int));
   DWORD nRul = 0;
 
   UINT nValLen = 0;

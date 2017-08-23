@@ -142,9 +142,11 @@ void Dispose(char* pMess)
 
       memcpy_s(pszBuff , sizeof(SOCKET) , &s , 1);
 
-      int nLen = GetRSCount(rs, pszBuff + sizeof(SOCKET));
+      memcpy_s(pszBuff + sizeof(SOCKET) , sizeof(int) , &g_nSqlVer , 1);
 
-      SendPacket(g_sClient , nRetType - 1 , pszBuff , nLen + sizeof(SOCKET));
+      int nLen = GetRSCount(rs, pszBuff + sizeof(SOCKET) + sizeof(int));
+
+      SendPacket(g_sClient , nRetType - 1 , pszBuff , nLen + sizeof(SOCKET) + sizeof(int));
     }
 
   }
